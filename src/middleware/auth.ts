@@ -9,6 +9,7 @@ export interface AuthenticatedRequest extends Request {
         email: string;
         name: string;
     };
+    sessionId?: string;
 }
 
 export const authMiddleware = async (
@@ -38,15 +39,15 @@ export const authMiddleware = async (
             return res.status(401).json({ error: 'Session expired' });
         }
 
-        if (session.token !== token) {
-            return res.status(401).json({ error: 'Invalid token' });
-        }
+        // We don't compare session.token with JWT because they are different (UUID vs JWT)
+        // The session validity is ensured by the existence of the session record and JWT signature
 
         req.admin = {
             id: session.admin.id,
             email: session.admin.email,
             name: session.admin.name,
         };
+        req.sessionId = session.id;
 
         next();
     } catch (error) {

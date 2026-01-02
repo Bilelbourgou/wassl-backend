@@ -32,9 +32,7 @@ export class DashboardService {
             }),
             prisma.order.count(),
             prisma.order.count({ where: { status: OrderStatus.PENDING } }),
-            prisma.order.groupBy({
-                by: ['customerEmail'],
-            }),
+            prisma.customer.count(),
             prisma.product.count({ where: { isActive: true } }),
         ]);
 
@@ -42,7 +40,7 @@ export class DashboardService {
             totalRevenue: revenueResult._sum.total || 0,
             totalOrders,
             pendingOrders,
-            totalCustomers: customersResult.length,
+            totalCustomers: customersResult,
             totalProducts,
         };
     }

@@ -5,6 +5,7 @@ import { calculatePricing } from '../utils/pricing';
 import { productService } from './product.service';
 import { couponService } from './coupon.service';
 import { notificationService } from './notification.service';
+import { CustomerService } from './customer.service';
 
 interface CreateOrderData {
     productSlug: string;
@@ -66,6 +67,13 @@ export class OrderService {
         // Generate order number
         const orderNumber = generateOrderNumber();
 
+        // Find or create customer
+        const customer = await CustomerService.findOrCreateCustomer({
+            name: customerName,
+            email: customerEmail,
+            phone: customerPhone,
+        });
+
         // Create order with files
         const order = await prisma.order.create({
             data: {
@@ -85,6 +93,7 @@ export class OrderService {
                 total: pricing.total,
                 couponId: coupon?.id,
                 couponCode: coupon?.code,
+                customerId: customer.id,
                 status: OrderStatus.PENDING,
                 files: {
                     create: files,

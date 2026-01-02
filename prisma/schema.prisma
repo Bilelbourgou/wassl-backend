@@ -60,6 +60,8 @@ model Order {
   orderNumber   String      @unique  // WAS-XXXXXXXX format
   
   // Customer Info (guest - no user FK)
+  customerId    String?
+  customer      Customer?   @relation(fields: [customerId], references: [id])
   customerName  String
   customerEmail String
   customerPhone String
@@ -189,4 +191,19 @@ model ContactMessage {
   message   String
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+// ========================
+// CUSTOMERS (auto-created from orders)
+// ========================
+model Customer {
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  phone       String?
+  
+  orders      Order[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

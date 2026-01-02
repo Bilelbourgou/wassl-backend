@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import prisma from '../../config/database';
 import { authMiddleware, AuthenticatedRequest } from '../../middleware/auth';
+import { CustomerService } from '../../services/customer.service';
 
 const router = Router();
 router.use(authMiddleware);
@@ -35,43 +36,20 @@ router.use(authMiddleware);
  *       500:
  *         description: Server error
  */
-// GET /api/admin/customers - List unique customers from orders
+// GET /api/admin/customers - List unique customers
 router.get('/', async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const { page = '1', limit = '10' } = req.query;
+        const { page = '1', limit = '10', search } = req.query;
         const pageNum = parseInt(page as string, 10);
         const limitNum = parseInt(limit as string, 10);
-        const skip = (pageNum - 1) * limitNum;
 
-        // Get unique customers with order counts
-        const customers = await prisma.order.groupBy({
-            by: ['customerEmail', 'customerName', 'customerPhone'],
-            _count: { id: true },
-            _sum: { total: true },
-            orderBy: { _count: { id: 'desc' } },
-            skip,
-            take: limitNum,
+        const result = await CustomerService.getAllCustomers({
+            page: pageNum,
+            limit: limitNum,
+            search: search as string,
         });
 
-        const total = await prisma.order.groupBy({
-            by: ['customerEmail'],
-        });
-
-        res.json({
-            customers: customers.map((c: { customerEmail: string; customerName: string; customerPhone: string; _count: { id: number }; _sum: { total: number | null } }) => ({
-                email: c.customerEmail,
-                name: c.customerName,
-                phone: c.customerPhone,
-                orderCount: c._count.id,
-                totalSpent: c._sum.total || 0,
-            })),
-            pagination: {
-                page: pageNum,
-                limit: limitNum,
-                total: total.length,
-                totalPages: Math.ceil(total.length / limitNum),
-            },
-        });
+        res.json(result);
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch customers' });
     }
@@ -82,29 +60,24 @@ router.get('/:email', async (req: AuthenticatedRequest, res: Response) => {
     try {
         const { email } = req.params;
 
-        const orders = await prisma.order.findMany({
-            where: { customerEmail: email },
-            orderBy: { createdAt: 'desc' },
-            include: {
-                files: true,
-            },
-        });
+        const customer = await CustomerService.getCustomerByEmail(email);
 
-        if (orders.length === 0) {
+        if (!customer) {
             return res.status(404).json({ error: 'Customer not found' });
         }
 
-        const customer = {
-            email: orders[0].customerEmail,
-            name: orders[0].customerName,
-            phone: orders[0].customerPhone,
-            address: orders[0].address,
-            orderCount: orders.length,
-            totalSpent: orders.reduce((sum: number, o: { total: number }) => sum + o.total, 0),
-            orders,
+        const formattedCustomer = {
+            id: customer.id,
+            email: customer.email,
+            name: customer.name,
+            phone: customer.phone,
+            orderCount: customer.orders.length,
+            totalSpent: customer.orders.reduce((sum: number, o: { total: number }) => sum + o.total, 0),
+            orders: customer.orders,
+            createdAt: customer.createdAt,
         };
 
-        res.json(customer);
+        res.json(formattedCustomer);
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch customer' });
     }

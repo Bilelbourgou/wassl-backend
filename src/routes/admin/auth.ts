@@ -109,11 +109,9 @@ router.post('/login', validate(loginSchema), async (req: Request, res: Response)
 // POST /api/admin/auth/logout
 router.post('/logout', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const authHeader = req.headers.authorization;
-        if (authHeader) {
-            const token = authHeader.split(' ')[1];
-            await prisma.adminSession.deleteMany({
-                where: { token },
+        if (req.sessionId) {
+            await prisma.adminSession.delete({
+                where: { id: req.sessionId },
             });
         }
         res.json({ message: 'Logged out successfully' });
