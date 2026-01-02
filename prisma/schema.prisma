@@ -1,0 +1,192 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ========================
+// ADMIN USERS (auth only)
+// ========================
+model Admin {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  name          String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  sessions      AdminSession[]
+}
+
+model AdminSession {
+  id        String   @id @default(cuid())
+  adminId   String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+}
+
+// ========================
+// PRODUCTS (dynamic - admin CRUD)
+// ========================
+model Product {
+  id          String   @id @default(cuid())
+  slug        String   @unique  // URL-friendly name
+  name        String
+  description String
+  price       Int      // In DT (50, 70)
+  oldPrice    Int?     // Strike-through price
+  stock       Int      @default(100)
+  category    String   // "NFC Cards" or "Review Plates"
+  features    String[] // Array of feature strings
+  imageUrl    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  orders      Order[]
+}
+
+// ========================
+// ORDERS
+// ========================
+model Order {
+  id            String      @id @default(cuid())
+  orderNumber   String      @unique  // WAS-XXXXXXXX format
+  
+  // Customer Info (guest - no user FK)
+  customerName  String
+  customerEmail String
+  customerPhone String
+  address       String
+  
+  // Product (single item per order)
+  productId     String
+  productName   String      // Denormalized for history
+  productSlug   String
+  quantity      Int         @default(1)
+  unitPrice     Int         // Price at time of order
+  
+  // Pricing
+  subtotal      Int         // unitPrice * quantity
+  deliveryFee   Int         @default(6)
+  discount      Int         @default(0)
+  total         Int
+  
+  // Coupon
+  couponId      String?
+  couponCode    String?     // Denormalized
+  
+  // Status
+  status        OrderStatus @default(PENDING)
+  notes         String?
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  
+  product       Product     @relation(fields: [productId], references: [id])
+  coupon        Coupon?     @relation(fields: [couponId], references: [id])
+  files         OrderFile[]
+  statusHistory OrderStatusHistory[]
+}
+
+model OrderFile {
+  id        String   @id @default(cuid())
+  orderId   String
+  filename  String   // Original filename
+  storedName String  // UUID filename on disk
+  url       String   // Public URL path
+  mimeType  String
+  size      Int      // Bytes
+  createdAt DateTime @default(now())
+  
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model OrderStatusHistory {
+  id        String      @id @default(cuid())
+  orderId   String
+  fromStatus OrderStatus?
+  toStatus  OrderStatus
+  changedBy String?     // Admin ID if changed by admin
+  note      String?
+  createdAt DateTime    @default(now())
+  
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+// ========================
+// COUPONS
+// ========================
+model Coupon {
+  id             String       @id @default(cuid())
+  code           String       @unique
+  type           CouponType
+  value          Int          // Percentage (10) or fixed amount (5)
+  minOrderAmount Int?
+  maxUsage       Int?
+  usageCount     Int          @default(0)
+  expiryDate     DateTime
+  status         CouponStatus @default(ACTIVE)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  
+  orders         Order[]
+}
+
+enum CouponType {
+  PERCENTAGE
+  FIXED
+}
+
+enum CouponStatus {
+  ACTIVE
+  INACTIVE
+  EXPIRED
+}
+
+// ========================
+// NOTIFICATIONS (admin)
+// ========================
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  metadata  Json?            // { orderId, productId, etc }
+  createdAt DateTime         @default(now())
+}
+
+enum NotificationType {
+  ORDER      // New order placed
+  STOCK      // Low stock alert
+  USER       // New contact message
+  SYSTEM     // System alerts
+}
+
+// ========================
+// CONTACT MESSAGES
+// ========================
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
