@@ -30,7 +30,7 @@ app.use(helmet());
 
 // CORS configuration
 app.use(cors({
-    origin: env.frontendUrl,
+    origin: [env.frontendUrl, 'http://localhost:8080'],
     credentials: true,
 }));
 
