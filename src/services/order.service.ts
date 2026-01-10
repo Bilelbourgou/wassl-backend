@@ -6,6 +6,7 @@ import { productService } from './product.service';
 import { couponService } from './coupon.service';
 import { notificationService } from './notification.service';
 import { CustomerService } from './customer.service';
+import { emailService } from './email.service';
 
 interface CreateOrderData {
     productSlug: string;
@@ -126,6 +127,22 @@ export class OrderService {
 
         // Create notification
         await notificationService.createOrderNotification(order.id, order.orderNumber, order.total);
+
+        // Send order confirmation email
+        await emailService.sendOrderConfirmation({
+            customerName,
+            customerEmail,
+            orderNumber: order.orderNumber,
+            productName: product.name,
+            quantity,
+            unitPrice: product.price,
+            subtotal: pricing.subtotal,
+            deliveryFee: pricing.deliveryFee,
+            discount: pricing.discount,
+            total: pricing.total,
+            address,
+            couponCode: coupon?.code,
+        });
 
         return order;
     }

@@ -18,6 +18,13 @@ export const env = {
 
     frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
 
+    // Email configuration
+    smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com',
+    smtpPort: parseInt(process.env.SMTP_PORT || '587', 10),
+    smtpUser: process.env.SMTP_USER || '',
+    smtpPass: process.env.SMTP_PASS || '',
+    smtpFrom: process.env.SMTP_FROM || 'WASSL <noreply@wassl.tn>',
+
     isDevelopment: process.env.NODE_ENV === 'development',
     isProduction: process.env.NODE_ENV === 'production',
 };

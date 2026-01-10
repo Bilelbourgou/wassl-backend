@@ -22,11 +22,14 @@ import adminCustomersRouter from './routes/admin/customers';
 import adminCouponsRouter from './routes/admin/coupons';
 import adminNotificationsRouter from './routes/admin/notifications';
 import adminDashboardRouter from './routes/admin/dashboard';
+import adminMessagesRouter from './routes/admin/messages';
 
 const app = express();
 
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+}));
 
 // CORS configuration
 app.use(cors({
@@ -73,6 +76,7 @@ app.use('/api/admin/customers', adminCustomersRouter);
 app.use('/api/admin/coupons', adminCouponsRouter);
 app.use('/api/admin/notifications', adminNotificationsRouter);
 app.use('/api/admin/dashboard', adminDashboardRouter);
+app.use('/api/admin/messages', adminMessagesRouter);
 
 // Error handling
 app.use(notFoundHandler);
