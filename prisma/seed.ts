@@ -21,6 +21,53 @@ async function main() {
 
     console.log('Created admin:', admin.email);
 
+    // Create products
+    const products = [
+        {
+            slug: 'nfc-card',
+            name: 'WASSL Custom NFC Business Card',
+            description: 'Smart NFC business card with custom design and digital profile',
+            price: 50,
+            oldPrice: 70,
+            stock: 150,
+            category: 'NFC Cards',
+            features: [
+                'Custom design with your branding',
+                'NFC technology for instant sharing',
+                'Digital profile management',
+                'Real-time analytics',
+                'Unlimited profile updates',
+            ],
+            isActive: true,
+        },
+        {
+            slug: 'review-plate',
+            name: 'Google Review Plate',
+            description: 'NFC-enabled plate to collect Google reviews effortlessly',
+            price: 70,
+            oldPrice: 109,
+            stock: 100,
+            category: 'Review Plates',
+            features: [
+                'Easy Google review collection',
+                'NFC & QR code enabled',
+                'Durable and weather-resistant',
+                'Custom branding available',
+                'Boost your online reputation',
+            ],
+            isActive: true,
+        },
+    ];
+
+    for (const product of products) {
+        const created = await prisma.product.upsert({
+            where: { slug: product.slug },
+            update: product,
+            create: product,
+        });
+        console.log('Created product:', created.name);
+    }
+
     // Create sample coupons
     const coupons = [
         {

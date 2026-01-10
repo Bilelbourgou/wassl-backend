@@ -3,6 +3,7 @@ import { productService } from '../../services/product.service';
 import { authMiddleware, AuthenticatedRequest } from '../../middleware/auth';
 import { validate } from '../../middleware/validate';
 import { createProductSchema, updateProductSchema } from '../../validators/product.schema';
+import { upload } from '../../middleware/upload';
 
 const router = Router();
 router.use(authMiddleware);
@@ -146,6 +147,29 @@ router.patch('/:id/toggle', async (req: AuthenticatedRequest, res: Response) => 
         res.json(product);
     } catch (error) {
         res.status(500).json({ error: 'Failed to toggle product status' });
+    }
+});
+
+// POST /api/admin/products/:id/image - Upload product image
+router.post('/:id/image', upload.single('image'), async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { id } = req.params;
+        const file = req.file;
+
+        if (!file) {
+            return res.status(400).json({ error: 'No image file provided' });
+        }
+
+        const imageUrl = `/uploads/${file.filename}`;
+        const product = await productService.update(id, { imageUrl });
+
+        res.json(product);
+    } catch (error: any) {
+        if (error.code === 'P2025') {
+            return res.status(404).json({ error: 'Product not found' });
+        }
+        console.error('Image upload error:', error);
+        res.status(500).json({ error: 'Failed to upload image' });
     }
 });
 

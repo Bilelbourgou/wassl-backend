@@ -42,7 +42,7 @@ export const CustomerService = {
                 name: customer.name,
                 email: customer.email,
                 phone: customer.phone,
-                ordersCount: customer._count.orders,
+                orderCount: customer._count.orders,
                 totalSpent: customer.orders.reduce((sum, order) => sum + order.total, 0),
                 createdAt: customer.createdAt,
             })),
