@@ -23,6 +23,7 @@ import adminCouponsRouter from './routes/admin/coupons';
 import adminNotificationsRouter from './routes/admin/notifications';
 import adminDashboardRouter from './routes/admin/dashboard';
 import adminMessagesRouter from './routes/admin/messages';
+import { emailService } from './services/email.service';
 
 const app = express();
 
@@ -85,6 +86,9 @@ app.use(errorHandler);
 // Start server
 const startServer = async () => {
     try {
+        // Verify email connection
+        await emailService.verifyConnection();
+
         app.listen(env.port, () => {
             console.log(`🚀 Server running on http://localhost:${env.port}`);
             console.log(`📊 Environment: ${env.nodeEnv}`);

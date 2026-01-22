@@ -49,7 +49,7 @@ model Product {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
-  orders      Order[]
+  orderItems  OrderItem[]
 }
 
 // ========================
@@ -67,15 +67,11 @@ model Order {
   customerPhone String
   address       String
   
-  // Product (single item per order)
-  productId     String
-  productName   String      // Denormalized for history
-  productSlug   String
-  quantity      Int         @default(1)
-  unitPrice     Int         // Price at time of order
+  // Items
+  items         OrderItem[]
   
   // Pricing
-  subtotal      Int         // unitPrice * quantity
+  subtotal      Int         // Sum of (unitPrice * quantity) for all items
   deliveryFee   Int         @default(6)
   discount      Int         @default(0)
   total         Int
@@ -91,10 +87,22 @@ model Order {
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   
-  product       Product     @relation(fields: [productId], references: [id])
   coupon        Coupon?     @relation(fields: [couponId], references: [id])
   files         OrderFile[]
   statusHistory OrderStatusHistory[]
+}
+
+model OrderItem {
+  id          String   @id @default(cuid())
+  orderId     String
+  productId   String
+  productName String   // Denormalized for history
+  productSlug String   // Denormalized for history
+  quantity    Int      @default(1)
+  unitPrice   Int      // Price at time of order
+  
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product  @relation(fields: [productId], references: [id])
 }
 
 model OrderFile {

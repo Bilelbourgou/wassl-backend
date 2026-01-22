@@ -1,8 +1,10 @@
 import { CouponType } from '@prisma/client';
 
 interface PricingInput {
-    unitPrice: number;
-    quantity: number;
+    items: {
+        unitPrice: number;
+        quantity: number;
+    }[];
     coupon?: {
         type: CouponType;
         value: number;
@@ -19,12 +21,12 @@ interface PricingResult {
 const DELIVERY_FEE = 6;
 
 /**
- * Calculate order pricing
+ * Calculate order pricing for multiple items
  */
 export function calculatePricing(input: PricingInput): PricingResult {
-    const { unitPrice, quantity, coupon } = input;
+    const { items, coupon } = input;
 
-    const subtotal = unitPrice * quantity;
+    const subtotal = items.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
     const deliveryFee = DELIVERY_FEE;
 
     let discount = 0;

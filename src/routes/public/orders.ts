@@ -56,7 +56,15 @@ const router = Router();
 // POST /api/orders - Create order (checkout)
 router.post('/', upload.array('files', 5), async (req: Request, res: Response) => {
     try {
-        const { productSlug, customerName, customerEmail, customerPhone, address, couponCode, quantity } = req.body;
+        const { items: itemsJson, customerName, customerEmail, customerPhone, address, couponCode } = req.body;
+
+        // Parse items if they come as a JSON string (common with FormData)
+        let items = [];
+        try {
+            items = typeof itemsJson === 'string' ? JSON.parse(itemsJson) : itemsJson;
+        } catch (e) {
+            throw new Error('Invalid items format');
+        }
 
         // Process uploaded files
         const files = (req.files as Express.Multer.File[] || []).map(file => ({
@@ -68,19 +76,18 @@ router.post('/', upload.array('files', 5), async (req: Request, res: Response) =
         }));
 
         const order = await orderService.create({
-            productSlug,
+            items,
             customerName,
             customerEmail,
             customerPhone,
             address,
             couponCode,
-            quantity: quantity ? parseInt(quantity, 10) : 1,
             files,
         });
 
         res.status(201).json({
             orderNumber: order.orderNumber,
-            productName: order.productName,
+            items: order.items,
             totalPrice: order.total,
             customerName: order.customerName,
         });

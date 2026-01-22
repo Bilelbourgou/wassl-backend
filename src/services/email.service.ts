@@ -5,9 +5,12 @@ interface OrderEmailData {
     customerName: string;
     customerEmail: string;
     orderNumber: string;
-    productName: string;
-    quantity: number;
-    unitPrice: number;
+    items: {
+        productName: string;
+        quantity: number;
+        unitPrice: number;
+        subtotal: number;
+    }[];
     subtotal: number;
     deliveryFee: number;
     discount: number;
@@ -33,7 +36,29 @@ class EmailService {
 
     private getOrderConfirmationTemplate(data: OrderEmailData): string {
         const formatPrice = (price: number) => `${price} DT`;
-        
+
+        const itemsHtml = data.items.map(item => `
+            <tr>
+                <td style="padding: 15px; background-color: #f8fafc; border-radius: 8px; margin-bottom: 10px; display: block;">
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                        <tr>
+                            <td style="color: #1a1a2e; font-weight: 600; font-size: 16px;">
+                                ${item.productName}
+                            </td>
+                            <td align="right" style="color: #64748b; font-size: 14px;">
+                                x${item.quantity}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="2" style="padding-top: 5px; color: #64748b; font-size: 14px;">
+                                Prix unitaire: ${formatPrice(item.unitPrice)}
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        `).join('');
+
         return `
 <!DOCTYPE html>
 <html lang="fr">
@@ -101,25 +126,7 @@ class EmailService {
                                 📦 Détails de la commande
                             </h3>
                             <table width="100%" cellpadding="0" cellspacing="0">
-                                <tr>
-                                    <td style="padding: 15px; background-color: #f8fafc; border-radius: 8px;">
-                                        <table width="100%" cellpadding="0" cellspacing="0">
-                                            <tr>
-                                                <td style="color: #1a1a2e; font-weight: 600; font-size: 16px;">
-                                                    ${data.productName}
-                                                </td>
-                                                <td align="right" style="color: #64748b; font-size: 14px;">
-                                                    x${data.quantity}
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td colspan="2" style="padding-top: 5px; color: #64748b; font-size: 14px;">
-                                                    Prix unitaire: ${formatPrice(data.unitPrice)}
-                                                </td>
-                                            </tr>
-                                        </table>
-                                    </td>
-                                </tr>
+                                ${itemsHtml}
                             </table>
                         </td>
                     </tr>

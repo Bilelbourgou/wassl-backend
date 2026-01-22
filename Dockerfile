@@ -43,8 +43,15 @@ COPY --from=builder /app/dist ./dist
 # Create uploads directory
 RUN mkdir -p uploads
 
+# Copy entrypoint script
+COPY docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh
+
 # Expose port
 EXPOSE 3001
+
+# Use entrypoint script
+ENTRYPOINT ["./docker-entrypoint.sh"]
 
 # Start the application
 CMD ["node", "dist/app.js"]

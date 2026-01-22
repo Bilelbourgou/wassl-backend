@@ -9,13 +9,15 @@ import { CustomerService } from './customer.service';
 import { emailService } from './email.service';
 
 interface CreateOrderData {
-    productSlug: string;
+    items: {
+        productSlug: string;
+        quantity: number;
+    }[];
     customerName: string;
     customerEmail: string;
     customerPhone: string;
     address: string;
     couponCode?: string;
-    quantity?: number;
     files?: {
         filename: string;
         storedName: string;
@@ -34,48 +36,61 @@ interface OrderFilters {
 
 export class OrderService {
     async create(data: CreateOrderData) {
-        const { productSlug, customerName, customerEmail, customerPhone, address, couponCode, quantity = 1, files = [] } = data;
+        const { items, customerName, customerEmail, customerPhone, address, couponCode, files = [] } = data;
 
-        // Get product
-        const product = await productService.getBySlug(productSlug);
-        if (!product) {
-            throw new Error('Product not found');
-        }
-        if (!product.isActive) {
-            throw new Error('Product is not available');
-        }
-        if (product.stock < quantity) {
-            throw new Error('Not enough stock');
+        if (!items || items.length === 0) {
+            throw new Error('Order must contain at least one item');
         }
 
-        // Validate coupon if provided
+        // 1. Fetch all products and validate
+        const productDetails = await Promise.all(
+            items.map(async (item) => {
+                const product = await productService.getBySlug(item.productSlug);
+                if (!product) throw new Error(`Product not found: ${item.productSlug}`);
+                if (!product.isActive) throw new Error(`Product is not available: ${product.name}`);
+                if (product.stock < item.quantity) throw new Error(`Not enough stock for: ${product.name}`);
+
+                return {
+                    ...product,
+                    orderedQuantity: item.quantity
+                };
+            })
+        );
+
+        // 2. Validate coupon if provided
         let coupon = null;
+        const totalSubtotalBeforeDiscount = productDetails.reduce(
+            (sum, p) => sum + (p.price * p.orderedQuantity), 0
+        );
+
         if (couponCode) {
-            const validation = await couponService.validate(couponCode, product.price * quantity);
+            const validation = await couponService.validate(couponCode, totalSubtotalBeforeDiscount);
             if (!validation.valid) {
                 throw new Error(validation.error);
             }
             coupon = validation.coupon;
         }
 
-        // Calculate pricing
+        // 3. Calculate pricing using updated pricing utility
         const pricing = calculatePricing({
-            unitPrice: product.price,
-            quantity,
+            items: productDetails.map(p => ({
+                unitPrice: p.price,
+                quantity: p.orderedQuantity
+            })),
             coupon: coupon ? { type: coupon.type, value: coupon.value } : null,
         });
 
-        // Generate order number
+        // 4. Generate order number
         const orderNumber = generateOrderNumber();
 
-        // Find or create customer
+        // 5. Find or create customer
         const customer = await CustomerService.findOrCreateCustomer({
             name: customerName,
             email: customerEmail,
             phone: customerPhone,
         });
 
-        // Create order with files
+        // 6. Create order with items and files
         const order = await prisma.order.create({
             data: {
                 orderNumber,
@@ -83,11 +98,6 @@ export class OrderService {
                 customerEmail,
                 customerPhone,
                 address,
-                productId: product.id,
-                productName: product.name,
-                productSlug: product.slug,
-                quantity,
-                unitPrice: product.price,
                 subtotal: pricing.subtotal,
                 deliveryFee: pricing.deliveryFee,
                 discount: pricing.discount,
@@ -96,6 +106,15 @@ export class OrderService {
                 couponCode: coupon?.code,
                 customerId: customer.id,
                 status: OrderStatus.PENDING,
+                items: {
+                    create: productDetails.map(p => ({
+                        productId: p.id,
+                        productName: p.name,
+                        productSlug: p.slug,
+                        quantity: p.orderedQuantity,
+                        unitPrice: p.price,
+                    }))
+                },
                 files: {
                     create: files,
                 },
@@ -108,34 +127,45 @@ export class OrderService {
                 },
             },
             include: {
+                items: true,
                 files: true,
             },
         });
 
-        // Decrement stock
-        await productService.decrementStock(product.id, quantity);
+        // 7. Manage stock and notifications for each item
+        for (const p of productDetails) {
+            // Decrement stock
+            await productService.decrementStock(p.id, p.orderedQuantity);
 
-        // Check for low stock notification
-        if (await productService.checkLowStock(product.id)) {
-            await notificationService.createLowStockNotification(product.id, product.name, product.stock - quantity);
+            // Check for low stock notification
+            if (await productService.checkLowStock(p.id)) {
+                // Fetch the updated product for current stock level
+                const updatedProduct = await productService.getBySlug(p.slug);
+                if (updatedProduct) {
+                    await notificationService.createLowStockNotification(p.id, p.name, updatedProduct.stock);
+                }
+            }
         }
 
-        // Increment coupon usage
+        // 8. Increment coupon usage
         if (coupon) {
             await couponService.incrementUsage(coupon.id);
         }
 
-        // Create notification
+        // 9. Create notification
         await notificationService.createOrderNotification(order.id, order.orderNumber, order.total);
 
-        // Send order confirmation email
+        // 10. Send order confirmation email (updated to pass multiple products)
         await emailService.sendOrderConfirmation({
             customerName,
             customerEmail,
             orderNumber: order.orderNumber,
-            productName: product.name,
-            quantity,
-            unitPrice: product.price,
+            items: order.items.map(item => ({
+                productName: item.productName,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                subtotal: item.unitPrice * item.quantity
+            })),
             subtotal: pricing.subtotal,
             deliveryFee: pricing.deliveryFee,
             discount: pricing.discount,
@@ -162,6 +192,13 @@ export class OrderService {
                 { orderNumber: { contains: search, mode: 'insensitive' } },
                 { customerName: { contains: search, mode: 'insensitive' } },
                 { customerEmail: { contains: search, mode: 'insensitive' } },
+                {
+                    items: {
+                        some: {
+                            productName: { contains: search, mode: 'insensitive' }
+                        }
+                    }
+                }
             ];
         }
 
@@ -169,6 +206,7 @@ export class OrderService {
             prisma.order.findMany({
                 where,
                 include: {
+                    items: true,
                     files: true,
                 },
                 orderBy: { createdAt: 'desc' },
@@ -193,11 +231,15 @@ export class OrderService {
         return prisma.order.findUnique({
             where: { id },
             include: {
+                items: {
+                    include: {
+                        product: true
+                    }
+                },
                 files: true,
                 statusHistory: {
                     orderBy: { createdAt: 'desc' },
                 },
-                product: true,
                 coupon: true,
             },
         });
@@ -221,6 +263,7 @@ export class OrderService {
                 },
             },
             include: {
+                items: true,
                 files: true,
                 statusHistory: {
                     orderBy: { createdAt: 'desc' },
