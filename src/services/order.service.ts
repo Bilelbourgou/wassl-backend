@@ -45,9 +45,7 @@ export class OrderService {
         // 1. Fetch all products and validate
         const productDetails = await Promise.all(
             items.map(async (item) => {
-                console.log('Processing order item:', JSON.stringify(item));
                 const product = await productService.getBySlug(item.productSlug);
-                console.log('Found product for slug', item.productSlug, ':', product ? product.id : 'NOT FOUND');
                 if (!product) throw new Error(`Product not found: ${item.productSlug}`);
                 if (!product.isActive) throw new Error(`Product is not available: ${product.name}`);
                 if (product.stock < item.quantity) throw new Error(`Not enough stock for: ${product.name}`);
