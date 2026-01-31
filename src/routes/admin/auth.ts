@@ -139,4 +139,157 @@ router.get('/me', authMiddleware, async (req: AuthenticatedRequest, res: Respons
     res.json({ admin: req.admin });
 });
 
+/**
+ * @swagger
+ * /api/admin/auth/profile:
+ *   put:
+ *     summary: Update admin profile
+ *     tags: [Admin Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Profile updated successfully
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Unauthorized
+ */
+// PUT /api/admin/auth/profile
+router.put('/profile', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { name, email } = req.body;
+        const adminId = req.admin?.id;
+
+        if (!adminId) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        // Validate required fields
+        if (!name || !email) {
+            return res.status(400).json({ error: 'Name and email are required' });
+        }
+
+        // Check email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({ error: 'Invalid email format' });
+        }
+
+        // Check if email is already taken by another admin
+        const existingAdmin = await prisma.admin.findFirst({
+            where: {
+                email,
+                NOT: { id: adminId }
+            }
+        });
+
+        if (existingAdmin) {
+            return res.status(400).json({ error: 'Email is already in use' });
+        }
+
+        // Update admin profile
+        const updatedAdmin = await prisma.admin.update({
+            where: { id: adminId },
+            data: { name, email },
+            select: { id: true, email: true, name: true }
+        });
+
+        res.json({ admin: updatedAdmin, message: 'Profile updated successfully' });
+    } catch (error) {
+        console.error('Profile update error:', error);
+        res.status(500).json({ error: 'Failed to update profile' });
+    }
+});
+
+/**
+ * @swagger
+ * /api/admin/auth/password:
+ *   put:
+ *     summary: Update admin password
+ *     tags: [Admin Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               currentPassword:
+ *                 type: string
+ *               newPassword:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Password updated successfully
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Invalid current password
+ */
+// PUT /api/admin/auth/password
+router.put('/password', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        const adminId = req.admin?.id;
+
+        if (!adminId) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        // Validate required fields
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ error: 'Current password and new password are required' });
+        }
+
+        // Validate new password length
+        if (newPassword.length < 6) {
+            return res.status(400).json({ error: 'New password must be at least 6 characters' });
+        }
+
+        // Get admin with password hash
+        const admin = await prisma.admin.findUnique({
+            where: { id: adminId }
+        });
+
+        if (!admin) {
+            return res.status(401).json({ error: 'Admin not found' });
+        }
+
+        // Verify current password
+        const isValidPassword = await bcrypt.compare(currentPassword, admin.passwordHash);
+        if (!isValidPassword) {
+            return res.status(401).json({ error: 'Current password is incorrect' });
+        }
+
+        // Hash new password
+        const newPasswordHash = await bcrypt.hash(newPassword, 10);
+
+        // Update password
+        await prisma.admin.update({
+            where: { id: adminId },
+            data: { passwordHash: newPasswordHash }
+        });
+
+        res.json({ message: 'Password updated successfully' });
+    } catch (error) {
+        console.error('Password update error:', error);
+        res.status(500).json({ error: 'Failed to update password' });
+    }
+});
+
 export default router;
+
