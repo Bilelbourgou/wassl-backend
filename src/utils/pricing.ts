@@ -18,7 +18,7 @@ interface PricingResult {
     total: number;
 }
 
-const DELIVERY_FEE = 6;
+const DELIVERY_FEE = 9;
 
 /**
  * Calculate order pricing for multiple items
