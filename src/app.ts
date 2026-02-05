@@ -7,7 +7,8 @@ import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './config/swagger';
 import { env } from './config/env';
 import { errorHandler, notFoundHandler } from './middleware/error';
-
+import prisma from './config/database';
+import redisClient from './config/redis';
 // Public routes
 import publicProductsRouter from './routes/public/products';
 import publicOrdersRouter from './routes/public/orders';
@@ -56,8 +57,30 @@ app.use('/uploads', (req, res, next) => {
 }, express.static(path.join(process.cwd(), env.uploadDir)));
 
 // Health check
-app.get('/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/health', async (req, res) => {
+    try {
+        // Check Postgres
+        await prisma.$queryRaw`SELECT 1`;
+
+        // Check Redis
+        await redisClient.ping();
+
+        res.json({
+            status: 'ok',
+            timestamp: new Date().toISOString(),
+            services: {
+                database: 'connected',
+                redis: 'connected'
+            }
+        });
+    } catch (error) {
+        console.error('Health check failed:', error);
+        res.status(500).json({
+            status: 'error',
+            timestamp: new Date().toISOString(),
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
 });
 
 // Swagger Documentation
